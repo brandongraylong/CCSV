@@ -1,0 +1,14 @@
+[package]
+name = "ccsv"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "ccsv"
+crate-type = ["staticlib"]  
+
+[build-dependencies]
+cbindgen = "0.24"
+
+[dependencies]
+libc = "0.2"
