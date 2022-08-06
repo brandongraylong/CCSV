@@ -26,4 +26,4 @@ example_build_c++:
 example_run_c++:
 	./bin/examples/C++/main.out
 example_valgrind_c++:
-	valgrind ./bin/examples/C++/main.out
+	valgrind --trace-children=yes --leak-check=full --show-reachable=yes ./bin/examples/C++/main.out

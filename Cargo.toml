@@ -12,3 +12,4 @@ cbindgen = "0.24"
 
 [dependencies]
 libc = "0.2"
+indexedlinkedhashmap = { git = "https://github.com/brandongraylong/rust-indexedlinkedhashmap.git" }

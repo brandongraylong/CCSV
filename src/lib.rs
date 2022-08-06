@@ -4,138 +4,14 @@
 
 extern crate libc;
 
+use indexedlinkedhashmap::ds::IndexedLinkedHashMap;
 use libc::{c_char, size_t};
-use std::ffi::CStr;
-use std::fs::{File, self, OpenOptions};
+use std::ffi::{CStr, CString};
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::io::Write;
-use std::collections::HashMap;
-
-struct LinkedHashMapVecValue {
-    k: String,
-    v: Vec<String>,
-}
-
-struct LinkedHashMapDataValue {
-    index: usize,
-    data: Vec<String>,
-}
-
-// Simple (Bespoke) Linked HashMap (Order preserved)
-// TODO: Template types - this shouldn't be bespoke
-// TODO: Make implementation more robust and standardized
-// TODO: Add iterator impl instead of vec method
-struct LinkedHashMap {
-    order: Vec<String>,
-    data: HashMap<String, LinkedHashMapDataValue>,
-}
-
-impl LinkedHashMap {
-    fn new() -> LinkedHashMap {
-        return LinkedHashMap {
-            order: Vec::new(),
-            data: HashMap::new(),
-        };
-    }
-
-    fn insert(&mut self, k: String, v: Vec<String>) {
-        let lhmv: LinkedHashMapDataValue = LinkedHashMapDataValue {
-            index: self.order.len(),
-            data: v,
-        };
-
-        self.order.push(k.to_owned());
-        self.data.insert(k, lhmv);
-    }
-
-    fn get_key(&self, k: String) -> Option<Vec<String>> {
-        let some_data: Option<&LinkedHashMapDataValue> = self.data.get(k.as_str());
-        if !some_data.is_none() {
-            return Some(some_data.unwrap().data.clone());
-        }
-
-        return None;
-    }
-
-    fn get_index(&self, index: usize) -> Option<Vec<String>> {
-        if index < self.order.len() {
-            let some_order: Option<&String> = self.order.get(index);
-            if !some_order.is_none() {
-                let some_data: Option<&LinkedHashMapDataValue> = self.data.get(some_order.unwrap().as_str());
-                if !some_data.is_none() {
-                    return Some(some_data.unwrap().data.clone());
-                }
-            }
-        }
-
-        return None;
-    }
-
-    fn set_index(&mut self, index: usize, data: Vec<String>) -> bool {
-        if index < self.order.len() {
-            let some_order: Option<&String> = self.order.get(index);
-            if some_order.is_none() {
-               return false;
-            }
-            let order: &String = some_order.unwrap();
-
-            self.data.insert(order.to_string(), LinkedHashMapDataValue {
-                index: index,
-                data: data,
-            });
-
-            return true;
-        }
-
-        return false;
-    }
-
-    fn remove(&mut self, k: String) -> Option<Vec<String>> {
-        if self.data.contains_key(k.as_str()) {
-            let some_data: Option<LinkedHashMapDataValue> = self.data.remove(k.as_str());
-            if !some_data.is_none() {
-                let data: LinkedHashMapDataValue = some_data.unwrap();
-                self.order.remove(data.index);
-                return Some(data.data);
-            }
-
-            return None;
-        }
-
-        return None;
-    }
-
-    fn pop(&mut self, k: String) -> Option<Vec<String>> {
-        if self.order.len() != 0 {
-            let some_popped: Option<String> = self.order.pop();
-            if !some_popped.is_none() {
-                let some_data: Option<LinkedHashMapDataValue> = self.data.remove(some_popped.unwrap().as_str());
-
-                if !some_data.is_none() {
-                    return Some(some_data.unwrap().data);
-                }
-            }
-        }
-
-        return None;
-    }
-
-    fn vec(&self) -> Vec<LinkedHashMapVecValue> {
-        let mut lhmvv: Vec<LinkedHashMapVecValue> = Vec::new();
-        for k in self.order.clone() {
-            let some_lhmdv: Option<&LinkedHashMapDataValue> = self.data.get(k.as_str());
-            if !some_lhmdv.is_none() {
-                lhmvv.push(LinkedHashMapVecValue {
-                    k: k,
-                    v: some_lhmdv.unwrap().data.clone(),
-                });
-            }
-        }
-
-        return lhmvv;
-    }
-}
+use std::ptr::null;
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where
@@ -146,60 +22,107 @@ where
 }
 
 pub struct CSV {
-    rows: size_t,
-    columns: size_t,
-    data: LinkedHashMap,
+    _rows: usize,
+    _columns: usize,
+    _data: IndexedLinkedHashMap<String, Vec<String>>,
 }
 
 impl CSV {
     fn new() -> CSV {
         return CSV {
-            rows: 0,
-            columns: 0,
-            data: LinkedHashMap::new(),
+            _rows: 0,
+            _columns: 0,
+            _data: IndexedLinkedHashMap::new(),
         };
     }
 
+    pub fn rows(&self) -> usize {
+        return self._rows;
+    }
+
+    pub fn columns(&self) -> usize {
+        return self._columns;
+    }
+
+    pub fn data(&self) -> &IndexedLinkedHashMap<String, Vec<String>> {
+        return &self._data;
+    }
+
+    pub fn format(&self) -> String {
+        let mut formatted: String = String::new();
+        for (i, key) in self._data.keys().iter().enumerate() {
+            formatted += key;
+            if i < self._columns - 1 {
+                formatted += ", ";
+            }
+        }
+        formatted += "\n";
+        for r in 0..self._rows {
+            for i in 0..self._data.len() {
+                let key = self._data.key_at(i).unwrap();
+                let column = self._data.get(key).unwrap();
+                let cell = column.get(r).unwrap();
+                formatted += cell;
+                if i < self._data.len() - 1 {
+                    formatted += ", ";
+                }
+            }
+            formatted += "\n";
+        }
+
+        return formatted;
+    }
+
     pub fn read(&mut self, path: String) {
-        let mut rows: size_t = 0;
-        let mut columns: size_t = 0;
-        let mut column_headers: Vec<String> = Vec::new();
+        let mut line_count: usize = 0;
+        let mut rows: usize = 0;
+        let mut columns: usize = 0;
 
         if let Ok(lines) = read_lines(path) {
             for line in lines {
-                if rows == 0 {
-                    if let Ok(cline) = line {
-                        for (_, column) in cline.split(", ").enumerate() {
-                            column_headers.push(column.to_string());
-                            self.data.insert(column.to_string(), Vec::new());
+                if let Ok(cline) = line {
+                    let split: Vec<&str> = cline.split(", ").collect::<Vec<&str>>();
+
+                    if line_count == 0 {
+                        for (_, column) in split.into_iter().enumerate() {
+                            self._data.set(
+                                column
+                                    .trim()
+                                    .to_string(),
+                                Vec::new(),
+                            );
                             columns += 1;
                         }
                     } else {
-                        break;
+                        for (i, cell) in split.to_owned().into_iter().enumerate() {
+                            if i >= columns {
+                                break;
+                            }
+                            let mut column_values: Vec<String> = self._data.at(i).unwrap();
+                            column_values.push(cell.trim().to_string());
+                            self._data.set(self._data.key_at(i).unwrap(), column_values);
+                        }
+
+                        if split.len() < columns {
+                            for i in split.len()..columns {
+                                let mut column_values: Vec<String> = self._data.at(i).unwrap();
+                                column_values.push(String::from(""));
+                                self._data.set(self._data.key_at(i).unwrap(), column_values);
+                            }
+                        }
+
+                        rows += 1;
                     }
                 } else {
-                    if let Ok(cline) = line {
-                        let split: Vec<&str> = cline.split(", ").collect::<Vec<&str>>();
-                        if split.len() == columns {
-                            for (i, row) in split.into_iter().enumerate() {
-                                let mut col_list: Vec<String> = self.data.get_index(i).unwrap();
-                                col_list.push(row.to_string());
-                                self.data.set_index(i, col_list);
-                            }
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
+                    break;
                 }
 
-                rows += 1;
+                line_count += 1;
             }
         }
 
-        self.rows = rows;
-        self.columns = columns;
+        self._rows = rows;
+        self._columns = columns;
     }
 
     pub fn write(&mut self, path: String) {
@@ -213,44 +136,11 @@ impl CSV {
             .open(parsed_path)
             .unwrap();
 
-        let mut headers: String = String::from("");
-        for (i, header) in self.data.order.iter().enumerate() {
-            headers += header;
-            if i != self.data.order.len() - 1 {
-                headers += ", ";
-            }
-        }
-        writeln!(file, "{headers}").unwrap();
-
-        for i in 0..self.rows - 1 {
-            let mut row: String = String::from("");
-
-            for (j, header) in self.data.order.iter().enumerate() {
-                let column: Vec<String> = self.data.get_key(header.to_string()).unwrap();
-                row += column.get(i).unwrap();
-
-                if j != self.data.order.len() - 1 {
-                    row += ", ";
-                }
-            }
-
-            writeln!(file, "{row}").unwrap();
-        }
+        write!(file, "{}", self.format()).unwrap();
     }
 
-    pub fn print(&mut self) {
-        println!("[{}, {}]", self.rows, self.columns);
-
-        for lhmvv in self.data.vec() {
-            print!("{}: ", lhmvv.k);
-            for (i, row) in lhmvv.v.to_owned().into_iter().enumerate() {
-                print!("{}", row);
-                if i != lhmvv.v.len() - 1 {
-                    print!(", ")
-                }
-            }
-            println!();
-        }
+    pub fn print(&self) {
+        print!("{}", self.format());
     }
 }
 
@@ -264,10 +154,38 @@ pub extern "C" fn csv_free(ptr: *mut CSV) {
     if ptr.is_null() {
         return;
     }
-    
+
     unsafe {
         Box::from_raw(ptr);
     }
+}
+
+#[no_mangle]
+pub extern "C" fn csv_rows(ptr: *mut CSV) -> *const size_t {
+    if ptr.is_null() {
+        return null();
+    }
+
+    let csv = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+
+    return Box::into_raw(Box::new(csv.rows()));
+}
+
+#[no_mangle]
+pub extern "C" fn csv_columns(ptr: *mut CSV) -> *const size_t {
+    if ptr.is_null() {
+        return null();
+    }
+
+    let csv = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+
+    return Box::into_raw(Box::new(csv.columns()));
 }
 
 #[no_mangle]
@@ -304,10 +222,28 @@ pub extern "C" fn csv_write(ptr: *mut CSV, path: *const c_char) {
 }
 
 #[no_mangle]
-pub extern "C" fn csv_print(ptr: *mut CSV) {
+pub extern "C" fn csv_get_headers(ptr: *mut CSV) -> *const *const c_char {
+    if ptr.is_null() {
+        return null();
+    }
+
     let csv = unsafe {
         assert!(!ptr.is_null());
         &mut *ptr
+    };
+
+    let c_char_vec: Vec<CString> = csv.data().keys().iter().map(|val| CString::new(val.as_str()).unwrap()).collect();
+    let mut p_c_char_vec: Vec<*const c_char> = c_char_vec.iter().map(|val| val.as_ptr()).collect();
+    p_c_char_vec.push(null());
+
+    return p_c_char_vec.as_ptr();
+}
+
+#[no_mangle]
+pub extern "C" fn csv_print(ptr: *const CSV) {
+    let csv = unsafe {
+        assert!(!ptr.is_null());
+        & *ptr
     };
 
     csv.print();
