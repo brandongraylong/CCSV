@@ -21,7 +21,7 @@ pub struct CSV {
 }
 
 impl CSV {
-    fn new() -> CSV {
+    pub fn new() -> CSV {
         return CSV {
             _rows: 0,
             _columns: 0,
