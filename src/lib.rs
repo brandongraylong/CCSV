@@ -1,17 +1,10 @@
-// TODO: Remove these
 #![allow(dead_code)]
-#![allow(unused_variables)]
-
-extern crate libc;
 
 use indexedlinkedhashmap::ds::IndexedLinkedHashMap;
-use libc::{c_char, size_t};
-use std::ffi::{CStr, CString};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::ptr::null;
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where
@@ -142,109 +135,4 @@ impl CSV {
     pub fn print(&self) {
         print!("{}", self.format());
     }
-}
-
-#[no_mangle]
-pub extern "C" fn csv_new() -> *mut CSV {
-    return Box::into_raw(Box::new(CSV::new()));
-}
-
-#[no_mangle]
-pub extern "C" fn csv_free(ptr: *mut CSV) {
-    if ptr.is_null() {
-        return;
-    }
-
-    unsafe {
-        Box::from_raw(ptr);
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn csv_rows(ptr: *mut CSV) -> *const size_t {
-    if ptr.is_null() {
-        return null();
-    }
-
-    let csv = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
-
-    return Box::into_raw(Box::new(csv.rows()));
-}
-
-#[no_mangle]
-pub extern "C" fn csv_columns(ptr: *mut CSV) -> *const size_t {
-    if ptr.is_null() {
-        return null();
-    }
-
-    let csv = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
-
-    return Box::into_raw(Box::new(csv.columns()));
-}
-
-#[no_mangle]
-pub extern "C" fn csv_read(ptr: *mut CSV, path: *const c_char) {
-    let path_c_str = unsafe {
-        assert!(!path.is_null());
-
-        CStr::from_ptr(path)
-    };
-
-    let path_r_str = path_c_str.to_str().unwrap().to_string();
-    let csv = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
-    csv.read(path_r_str);
-}
-
-#[no_mangle]
-pub extern "C" fn csv_write(ptr: *mut CSV, path: *const c_char) {
-    let path_c_str = unsafe {
-        assert!(!path.is_null());
-
-        CStr::from_ptr(path)
-    };
-
-    let path_r_str = path_c_str.to_str().unwrap().to_string();
-    let csv = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
-
-    csv.write(path_r_str);
-}
-
-#[no_mangle]
-pub extern "C" fn csv_get_headers(ptr: *mut CSV) -> *const *const c_char {
-    if ptr.is_null() {
-        return null();
-    }
-
-    let csv = unsafe {
-        assert!(!ptr.is_null());
-        &mut *ptr
-    };
-
-    let c_char_vec: Vec<CString> = csv.data().keys().iter().map(|val| CString::new(val.as_str()).unwrap()).collect();
-    let mut p_c_char_vec: Vec<*const c_char> = c_char_vec.iter().map(|val| val.as_ptr()).collect();
-    p_c_char_vec.push(null());
-
-    return p_c_char_vec.as_ptr();
-}
-
-#[no_mangle]
-pub extern "C" fn csv_print(ptr: *const CSV) {
-    let csv = unsafe {
-        assert!(!ptr.is_null());
-        & *ptr
-    };
-
-    csv.print();
 }
