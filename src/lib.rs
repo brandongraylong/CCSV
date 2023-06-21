@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use indexedlinkedhashmap::ds::IndexedLinkedHashMap;
+use indexedlinkedhashmap::IndexedLinkedHashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::io::{self, BufRead};
@@ -17,7 +17,7 @@ where
 pub struct CSV {
     _rows: usize,
     _columns: usize,
-    _data: IndexedLinkedHashMap<String, Vec<String>>,
+    _data: IndexedLinkedHashMap<Vec<String>, String, Vec<String>>,
 }
 
 impl CSV {
@@ -37,7 +37,7 @@ impl CSV {
         return self._columns;
     }
 
-    pub fn data(&self) -> &IndexedLinkedHashMap<String, Vec<String>> {
+    pub fn data(&self) -> &IndexedLinkedHashMap<Vec<String>, String, Vec<String>> {
         return &self._data;
     }
 
@@ -52,8 +52,8 @@ impl CSV {
         formatted += "\n";
         for r in 0..self._rows {
             for i in 0..self._data.len() {
-                let key = self._data.key_at(i).unwrap();
-                let column = self._data.get(key).unwrap();
+                let key = self._data.key_at(Some(i)).unwrap();
+                let column = self._data.get(key.to_owned()).unwrap();
                 let cell = column.get(r).unwrap();
                 formatted += cell;
                 if i < self._data.len() - 1 {
@@ -91,16 +91,16 @@ impl CSV {
                             if i >= columns {
                                 break;
                             }
-                            let mut column_values: Vec<String> = self._data.at(i).unwrap();
-                            column_values.push(cell.trim().to_string());
-                            self._data.set(self._data.key_at(i).unwrap(), column_values);
+                            let column_values: &Vec<String> = self._data.at(Some(i)).unwrap();
+                            column_values.to_owned().push(cell.trim().to_string());
+                            self._data.set(self._data.key_at(Some(i)).unwrap().to_owned(), column_values.to_owned());
                         }
 
                         if split.len() < columns {
                             for i in split.len()..columns {
-                                let mut column_values: Vec<String> = self._data.at(i).unwrap();
-                                column_values.push(String::from(""));
-                                self._data.set(self._data.key_at(i).unwrap(), column_values);
+                                let column_values: &Vec<String> = self._data.at(Some(i)).unwrap();
+                                column_values.to_owned().push(String::from(""));
+                                self._data.set(self._data.key_at(Some(i)).unwrap().to_owned(), column_values.to_owned());
                             }
                         }
 

@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-indexedlinkedhashmap = { git = "https://github.com/brandongraylong/rust-indexedlinkedhashmap.git" }
+indexedlinkedhashmap = "2.0.2"
